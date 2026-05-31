@@ -1,9 +1,11 @@
 'use client'
 
-import { useDataChannel } from '@livekit/components-react'
-import { useLocalParticipant } from '@livekit/components-react'
+import { useDataChannel, useLocalParticipant } from '@livekit/components-react'
 import { motion } from 'framer-motion'
+import { useGameStore } from '@/store/gameStore'
 import type { GameMessage } from '@/types/game'
+
+const enc = new TextEncoder()
 
 const EMOJIS: { emoji: string; label: string; color: string }[] = [
   { emoji: '🔥', label: 'Fire',   color: '#ea580c' },
@@ -12,9 +14,12 @@ const EMOJIS: { emoji: string; label: string; color: string }[] = [
   { emoji: '😂', label: 'Laugh',  color: '#0891b2' },
 ]
 
+const BOUNCE = { type: 'spring', stiffness: 600, damping: 14 } as const
+
 export default function EmojiTray({ targetId }: { targetId: string }) {
   const { localParticipant } = useLocalParticipant()
   const { send } = useDataChannel('game')
+  const handleMessage = useGameStore((s) => s.handleMessage)
 
   const fire = async (emoji: string) => {
     const msg: GameMessage = {
@@ -23,7 +28,10 @@ export default function EmojiTray({ targetId }: { targetId: string }) {
       targetId,
       emoji,
     }
-    await send(new TextEncoder().encode(JSON.stringify(msg)), { reliable: true })
+    // Broadcast to all other participants
+    await send(enc.encode(JSON.stringify(msg)), { reliable: true })
+    // Apply locally — LiveKit doesn't echo messages back to the sender
+    handleMessage(msg)
   }
 
   return (
@@ -31,17 +39,14 @@ export default function EmojiTray({ targetId }: { targetId: string }) {
       {EMOJIS.map(({ emoji, label, color }) => (
         <motion.button
           key={emoji}
-          whileHover={{ scale: 1.3, y: -2 }}
-          whileTap={{ scale: 0.85 }}
-          transition={{ type: 'spring', stiffness: 500, damping: 15 }}
+          whileHover={{ scale: 1.35, y: -3 }}
+          whileTap={{ scale: 0.8 }}
+          transition={BOUNCE}
           onClick={() => fire(emoji)}
           aria-label={`Send ${label} reaction`}
           title={label}
-          className="flex h-6 w-6 items-center justify-center rounded-full text-sm transition-shadow"
-          style={{
-            background: `${color}18`,
-            border: `1px solid ${color}30`,
-          }}
+          className="flex h-6 w-6 items-center justify-center rounded-full text-sm"
+          style={{ background: `${color}18`, border: `1px solid ${color}30` }}
         >
           {emoji}
         </motion.button>

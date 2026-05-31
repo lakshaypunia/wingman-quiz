@@ -7,6 +7,7 @@ import type {
   PlayerResult,
   GameMessage,
   RoomSession,
+  EmojiReaction,
 } from '@/types/game'
 
 export interface PlayerInfo {
@@ -38,6 +39,12 @@ interface GameState {
   /* ── Final results ────────────────────────────── */
   finalResults: PlayerResult[]
 
+  /* ── Emoji reactions (floating overlay) ──────── */
+  activeEmojiReactions: EmojiReaction[]
+
+  /* ── Effective host (recomputed live from participant join order) */
+  hostIdentity: string | null
+
   /* ── Actions ──────────────────────────────────── */
   setSession: (s: RoomSession) => void
   setQuestions: (q: Question[]) => void
@@ -46,6 +53,8 @@ interface GameState {
   addPlayer: (id: string, info: PlayerInfo) => void
   removePlayer: (id: string) => void
   setFinalResults: (results: PlayerResult[]) => void
+  removeEmojiReaction: (id: string) => void
+  setHostIdentity: (id: string | null) => void
   handleMessage: (msg: GameMessage) => void
 }
 
@@ -59,6 +68,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   lockedQuestions: {},
   playerProgress: {},
   finalResults: [],
+  activeEmojiReactions: [],
+  hostIdentity: null,
 
   setSession: (s) => set({ session: s }),
 
@@ -78,6 +89,13 @@ export const useGameStore = create<GameState>((set, get) => ({
     }),
 
   setFinalResults: (results) => set({ finalResults: results }),
+
+  removeEmojiReaction: (id) =>
+    set((state) => ({
+      activeEmojiReactions: state.activeEmojiReactions.filter((r) => r.id !== id),
+    })),
+
+  setHostIdentity: (id) => set({ hostIdentity: id }),
 
   handleMessage: (msg) => {
     switch (msg.type) {
@@ -147,7 +165,26 @@ export const useGameStore = create<GameState>((set, get) => ({
         set({ phase: 'results' })
         break
 
-      // EMOJI is handled locally in VideoTile — no global state needed
+      case 'EMOJI': {
+        const id = Math.random().toString(36).slice(2)
+        const reaction: EmojiReaction = {
+          id,
+          emoji: msg.emoji,
+          side: Math.random() > 0.5 ? 'left' : 'right',
+          bottomPercent: 25 + Math.random() * 45,
+          size: 28 + Math.floor(Math.random() * 20),
+        }
+        set((state) => ({
+          activeEmojiReactions: [...state.activeEmojiReactions, reaction],
+        }))
+        // Auto-remove after animation completes
+        setTimeout(() => {
+          set((state) => ({
+            activeEmojiReactions: state.activeEmojiReactions.filter((r) => r.id !== id),
+          }))
+        }, 2800)
+        break
+      }
     }
   },
 }))

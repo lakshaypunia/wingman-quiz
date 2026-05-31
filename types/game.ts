@@ -61,3 +61,11 @@ export interface RoomSession {
   roomCode: string
   isHost: boolean
 }
+
+export interface EmojiReaction {
+  id: string
+  emoji: string
+  side: 'left' | 'right'
+  bottomPercent: number  // 25–70 vh
+  size: number           // px font-size
+}

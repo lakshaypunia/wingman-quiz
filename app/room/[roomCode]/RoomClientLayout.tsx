@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { LiveKitRoom, RoomAudioRenderer, useParticipants } from '@livekit/components-react'
 import '@livekit/components-styles'
 import VideoOverlay from '@/components/VideoOverlay'
+import EmojiReactionOverlay from '@/components/EmojiReactionOverlay'
 import { useGameSync } from '@/hooks/useGameSync'
 import { useGameStore } from '@/store/gameStore'
 import type { RoomSession } from '@/types/game'
@@ -21,15 +22,16 @@ interface SessionData {
 
 /* ─── Inner component: must live inside <LiveKitRoom> ─────── */
 function GameSync({ session }: { session: SessionData }) {
-  const setSession  = useGameStore((s) => s.setSession)
-  const setQuestions = useGameStore((s) => s.setQuestions)
-  const addPlayer   = useGameStore((s) => s.addPlayer)
-  const removePlayer = useGameStore((s) => s.removePlayer)
+  const setSession     = useGameStore((s) => s.setSession)
+  const setQuestions   = useGameStore((s) => s.setQuestions)
+  const addPlayer      = useGameStore((s) => s.addPlayer)
+  const removePlayer   = useGameStore((s) => s.removePlayer)
+  const setHostIdentity = useGameStore((s) => s.setHostIdentity)
 
   // Wire LiveKit data channel → Zustand handleMessage
   useGameSync()
 
-  // Sync LiveKit participants → store.players
+  // Sync LiveKit participants → store.players + effective host
   const participants = useParticipants()
   const prevIds = useRef(new Set<string>())
 
@@ -41,6 +43,8 @@ function GameSync({ session }: { session: SessionData }) {
       if (!prevIds.current.has(p.identity)) {
         addPlayer(p.identity, {
           username: p.identity,
+          // isHost stored for reference but not used for permission checks —
+          // effective host is derived from joinedAt order (see setHostIdentity below)
           isHost: p.identity === session.username && session.isHost,
         })
       }
@@ -52,7 +56,20 @@ function GameSync({ session }: { session: SessionData }) {
     })
 
     prevIds.current = current
-  }, [participants, session.username, session.isHost, addPlayer, removePlayer])
+
+    // ── Effective host: earliest joinedAt participant still connected ──
+    // Deterministic across all clients — no message passing needed.
+    // When the original host leaves, the longest-connected remaining
+    // player automatically inherits host privileges.
+    if (participants.length > 0) {
+      const sorted = [...participants].sort(
+        (a, b) => (a.joinedAt?.getTime() ?? 0) - (b.joinedAt?.getTime() ?? 0)
+      )
+      setHostIdentity(sorted[0].identity)
+    } else {
+      setHostIdentity(null)
+    }
+  }, [participants, session.username, session.isHost, addPlayer, removePlayer, setHostIdentity])
 
   // Seed session + fetch questions once on mount
   useEffect(() => {
@@ -126,6 +143,9 @@ export default function RoomClientLayout({
 
       {/* Persistent video bar */}
       <VideoOverlay session={session} />
+
+      {/* Fullscreen floating emoji reaction overlay — z-200, pointer-events none */}
+      <EmojiReactionOverlay />
 
       {/* Page content below 152px video bar */}
       <div style={{ paddingTop: '152px' }}>

@@ -3,6 +3,7 @@
 import { useTracks, useLocalParticipant, isTrackReference } from '@livekit/components-react'
 import { Track } from 'livekit-client'
 import VideoTile from './VideoTile'
+import { useGameStore } from '@/store/gameStore'
 
 interface SessionData {
   userId: string
@@ -13,6 +14,7 @@ interface SessionData {
 
 export default function VideoOverlay({ session }: { session: SessionData }) {
   const { localParticipant } = useLocalParticipant()
+  const hostIdentity = useGameStore((s) => s.hostIdentity)
 
   const tracks = useTracks([
     { source: Track.Source.Camera, withPlaceholder: true },
@@ -40,10 +42,10 @@ export default function VideoOverlay({ session }: { session: SessionData }) {
             <p className="font-heading text-lg font-semibold leading-tight mt-0.5"
               style={{ color: 'var(--text-primary)' }}>{session.roomCode}</p>
           </div>
-          {session.isHost && (
+          {hostIdentity === session.username && (
             <span className="badge mb-1"
               style={{ background: 'rgba(233,30,140,0.12)', color: 'var(--pink)', border: '1px solid rgba(233,30,140,0.25)', fontSize: '0.65rem' }}>
-              HOST
+              👑 HOST
             </span>
           )}
         </div>

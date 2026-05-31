@@ -120,7 +120,8 @@ function PlayerCard({
     >
       {/* Avatar */}
       <motion.div
-        whileHover={{ scale: 1.08, rotate: [-2, 2, 0] }}
+        whileHover={{ scale: 1.1 }}
+        whileTap={{ scale: 0.95 }}
         transition={BOUNCE}
         className="player-avatar"
         style={{
@@ -550,6 +551,15 @@ export default function LobbyPage() {
   const handleStart = async () => {
     if (!canStart || starting || !selectedMode) return
     setStarting(true)
+
+    // Persist gameMode to MongoDB before broadcasting so any client that
+    // misses the GAME_START data-channel message can recover via GET.
+    await fetch(`/api/rooms/${roomCode}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ gameMode: selectedMode }),
+    }).catch(console.error)
+
     const msg = { type: 'GAME_START' as const, gameMode: selectedMode }
     await sendMessage(msg)
     handleMsg(msg)  // sender doesn't receive own data channel message

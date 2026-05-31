@@ -130,16 +130,25 @@ export const useGameStore = create<GameState>((set, get) => ({
       }
 
       case 'QUESTION_LOCKED':
-        set((state) => ({
-          lockedQuestions: {
-            ...state.lockedQuestions,
-            [msg.questionId]: msg.winnerId,
-          },
-        }))
+        // First-wins: ignore if this question is already locked
+        set((state) => {
+          if (state.lockedQuestions[msg.questionId] !== undefined) return state
+          return {
+            lockedQuestions: {
+              ...state.lockedQuestions,
+              [msg.questionId]: msg.winnerId,
+            },
+          }
+        })
         break
 
       case 'ADVANCE_QUESTION':
-        set({ currentGlobalQuestion: msg.questionId + 1 })
+        // Guard: only advance if this questionId matches the current question
+        set((state) => {
+          const current = state.questions[state.currentGlobalQuestion]
+          if (current?.questionId !== msg.questionId) return state
+          return { currentGlobalQuestion: state.currentGlobalQuestion + 1 }
+        })
         break
 
       case 'PROGRESS_UPDATE':

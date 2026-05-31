@@ -2,13 +2,16 @@
 
 import { useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useGameStore } from '@/store/gameStore'
 import { useFFLogic } from '@/hooks/useFFLogic'
+import { useTRLogic } from '@/hooks/useTRLogic'
 import ScoreStrip from '@/components/game/ScoreStrip'
 import FFQuestion from '@/components/game/FFQuestion'
+import TRQuestion from '@/components/game/TRQuestion'
+import TRProgressBar from '@/components/game/TRProgressBar'
 
-/* ─── FFF game wrapper ────────────────────────────────────── */
+/* ─── FFF wrapper ──────────────────────────────────────────── */
 function FFGame() {
   useFFLogic()
 
@@ -42,7 +45,75 @@ function FFGame() {
   )
 }
 
-/* ─── Play page ───────────────────────────────────────────── */
+/* ─── Track & Race wrapper ─────────────────────────────────── */
+function TRGame() {
+  const { question, localIdx, timeLeft, answered, revealed, isDone, totalScore, submitAnswer } = useTRLogic()
+  const questions = useGameStore((s) => s.questions)
+
+  if (isDone) {
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center gap-4 py-16">
+        <motion.div
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          transition={{ type: 'spring', stiffness: 300, damping: 18 }}
+          className="text-6xl"
+        >
+          🏁
+        </motion.div>
+        <p className="font-heading text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
+          You finished!
+        </p>
+        <p className="font-heading text-base" style={{ color: 'var(--text-muted)' }}>
+          Score: <span className="font-bold" style={{ color: 'var(--purple)' }}>{totalScore.toLocaleString()}</span> pts
+        </p>
+        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+          Waiting for others to finish…
+        </p>
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
+          className="mt-2 h-6 w-6 rounded-full border-2 border-purple-300 border-t-purple-600"
+        />
+      </div>
+    )
+  }
+
+  if (!question) {
+    return (
+      <div className="flex flex-1 items-center justify-center">
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+          className="h-10 w-10 rounded-full border-4 border-purple-300 border-t-purple-600"
+        />
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-1 flex-col pt-4 pb-8">
+      <TRProgressBar localIdx={localIdx} />
+
+      <div className="flex flex-1 flex-col items-center px-4">
+        <AnimatePresence mode="wait">
+          <TRQuestion
+            key={question.questionId}
+            question={question}
+            localIdx={localIdx}
+            totalQuestions={questions.length}
+            timeLeft={timeLeft}
+            answered={answered}
+            revealed={revealed}
+            onAnswer={submitAnswer}
+          />
+        </AnimatePresence>
+      </div>
+    </div>
+  )
+}
+
+/* ─── Play page router ─────────────────────────────────────── */
 export default function PlayPage() {
   const params   = useParams()
   const router   = useRouter()
@@ -56,11 +127,8 @@ export default function PlayPage() {
   const setGameMode  = useGameStore((s) => s.setGameMode)
   const setPhase     = useGameStore((s) => s.setPhase)
 
-  // ── Recovery fetch ─────────────────────────────────────────────────
-  // If questions or gameMode are missing (client missed GAME_START or
-  // arrived before the initial GameSync fetch completed), pull them
-  // from the API. The host PATCHes gameMode to MongoDB before sending
-  // GAME_START, so the API always returns the correct value.
+  // Recovery fetch: if questions or gameMode are missing (missed GAME_START
+  // or arrived before GameSync's initial fetch completed)
   useEffect(() => {
     const needsData = questions.length === 0 || !gameMode
     if (!needsData) return
@@ -71,7 +139,6 @@ export default function PlayPage() {
       .then((data) => {
         if (data.questions?.length) setQuestions(data.questions)
         if (data.gameMode)          setGameMode(data.gameMode)
-        // Ensure phase is 'playing' so the game renders
         setPhase('playing')
       })
       .catch(console.error)
@@ -89,23 +156,7 @@ export default function PlayPage() {
 
       {gameMode === 'FASTEST_FINGER' && <FFGame />}
 
-      {gameMode === 'TRACK_AND_RACE' && (
-        <div className="flex flex-1 items-center justify-center">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="lobby-section text-center max-w-md"
-          >
-            <p className="text-4xl mb-3">🏁</p>
-            <p className="font-heading text-xl font-bold" style={{ color: 'var(--text-primary)' }}>
-              Track & Race
-            </p>
-            <p className="text-sm mt-2" style={{ color: 'var(--text-muted)' }}>
-              Coming in Phase 8!
-            </p>
-          </motion.div>
-        </div>
-      )}
+      {gameMode === 'TRACK_AND_RACE' && <TRGame />}
 
       {!gameMode && (
         <div className="flex flex-1 flex-col items-center justify-center gap-3">
